@@ -701,6 +701,21 @@ public class InAppBrowser extends CordovaPlugin {
             this.edittext = mEditText;
         }
 
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            if (url.startsWith("yoikinfo:")) {
+                try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW);
+                        intent.setData(Uri.parse(url));
+                        cordova.getActivity().startActivity(intent);
+                    } catch (android.content.ActivityNotFoundException e) {
+                        LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
+                    }
+                    return true;
+            }
+            return false;
+        }
+
         /**
          * Notify the host application that a page has started loading.
          *
@@ -722,17 +737,6 @@ public class InAppBrowser extends CordovaPlugin {
                     cordova.getActivity().startActivity(intent);
                 } catch (android.content.ActivityNotFoundException e) {
                     LOG.e(LOG_TAG, "Error dialing " + url + ": " + e.toString());
-                }
-            }
-
-            else if (url.startsWith("yoikinfo:")) {
-                try {
-                    inAppWebView.stopLoading();
-                    Intent intent = new Intent(Intent.ACTION_VIEW);
-                    intent.setData(Uri.parse(url));
-                    cordova.getActivity().startActivity(intent);
-                } catch (android.content.ActivityNotFoundException e) {
-                    LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
                 }
             }
 

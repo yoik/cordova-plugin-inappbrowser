@@ -70,11 +70,11 @@
 
 - (BOOL) isSystemUrl:(NSURL*)url
 {
-	if ([[url host] isEqualToString:@"itunes.apple.com"]) {
-		return YES;
-	}
+    if ([[url host] isEqualToString:@"itunes.apple.com"]) {
+        return YES;
+    }
 
-	return NO;
+    return NO;
 }
 
 - (void)open:(CDVInvokedUrlCommand*)command
@@ -115,6 +115,7 @@
 - (void)openInInAppBrowser:(NSURL*)url withOptions:(NSString*)options
 {
     CDVInAppBrowserOptions* browserOptions = [CDVInAppBrowserOptions parseOptions:options];
+    self.schemeCapture = browserOptions.schemeCapture;
 
     if (browserOptions.clearcache) {
         NSHTTPCookie *cookie;
@@ -384,7 +385,19 @@
             [self.commandDelegate sendPluginResult:pluginResult callbackId:scriptCallbackId];
             return NO;
         }
+
     } else if ((self.callbackId != nil) && isTopLevelNavigation) {
+
+        // Send a loadstart event if the scheme is matched and stop the webview load
+        if ([self.schemeCapture containsObject:url.scheme]) {
+
+            CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                          messageAsDictionary:@{@"type":@"loadstart", @"url":[url absoluteString], @"scheme":[url scheme]}];
+            [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
+            return NO;
+        }
+
         // Send a loadstart event for each top-level navigation (includes redirects).
         CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                       messageAsDictionary:@{@"type":@"loadstart", @"url":[url absoluteString]}];
@@ -921,6 +934,7 @@
         self.suppressesincrementalrendering = NO;
         self.hidden = NO;
         self.disallowoverscroll = NO;
+        self.schemeCapture = @[];
     }
 
     return self;
@@ -942,19 +956,25 @@
             NSString* value = [keyvalue objectAtIndex:1];
             NSString* value_lc = [value lowercaseString];
 
-            BOOL isBoolean = [value_lc isEqualToString:@"yes"] || [value_lc isEqualToString:@"no"];
-            NSNumberFormatter* numberFormatter = [[NSNumberFormatter alloc] init];
-            [numberFormatter setAllowsFloats:YES];
-            BOOL isNumber = [numberFormatter numberFromString:value_lc] != nil;
+            if ([[key lowercaseString] isEqualToString:@"schemecapture"]) {
+                obj.schemeCapture = [value componentsSeparatedByString:@"|"];
 
-            // set the property according to the key name
-            if ([obj respondsToSelector:NSSelectorFromString(key)]) {
-                if (isNumber) {
-                    [obj setValue:[numberFormatter numberFromString:value_lc] forKey:key];
-                } else if (isBoolean) {
-                    [obj setValue:[NSNumber numberWithBool:[value_lc isEqualToString:@"yes"]] forKey:key];
-                } else {
-                    [obj setValue:value forKey:key];
+            } else {
+
+                BOOL isBoolean = [value_lc isEqualToString:@"yes"] || [value_lc isEqualToString:@"no"];
+                NSNumberFormatter* numberFormatter = [[NSNumberFormatter alloc] init];
+                [numberFormatter setAllowsFloats:YES];
+                BOOL isNumber = [numberFormatter numberFromString:value_lc] != nil;
+
+                // set the property according to the key name
+                if ([obj respondsToSelector:NSSelectorFromString(key)]) {
+                    if (isNumber) {
+                        [obj setValue:[numberFormatter numberFromString:value_lc] forKey:key];
+                    } else if (isBoolean) {
+                        [obj setValue:[NSNumber numberWithBool:[value_lc isEqualToString:@"yes"]] forKey:key];
+                    } else {
+                        [obj setValue:value forKey:key];
+                    }
                 }
             }
         }

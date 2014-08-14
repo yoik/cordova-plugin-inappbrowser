@@ -59,6 +59,7 @@ instance, or the system browser.
     - __hidden__: set to `yes` to create the browser and load the page, but not show it. The loadstop event fires when loading is complete. Omit or set to `no` (default) to have the browser open and load normally.
     - __clearcache__: set to `yes` to have the browser's cookie cache cleared before the new window is opened
     - __clearsessioncache__: set to `yes` to have the session cookie cache cleared before the new window is opened
+    - __schemes__: set to a pipe (|) separated list of schemes that are allowed to be executed.  These are opened via a view intent the loaderror callback is called if there is no matching scheme.
 
     iOS only:
 
@@ -93,7 +94,7 @@ instance, or the system browser.
 
 ### Firefox OS Quirks
 
-As plugin doesn't enforce any design there is a need to add some CSS rules if 
+As plugin doesn't enforce any design there is a need to add some CSS rules if
 opened with `target='_blank'`. The rules might look like these
 
 ``` css

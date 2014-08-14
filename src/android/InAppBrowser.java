@@ -74,6 +74,7 @@ public class InAppBrowser extends CordovaPlugin {
     private static final String LOCATION = "location";
     private static final String HIDDEN = "hidden";
     private static final String SCHEME_ALLOW = "schemes";
+    private static final String SCHEME_CAPTURE = "schemecapture";
     private static final String SCHEME_SEPARATOR = "\\|";
     private static final String LOAD_START_EVENT = "loadstart";
     private static final String LOAD_STOP_EVENT = "loadstop";
@@ -89,6 +90,7 @@ public class InAppBrowser extends CordovaPlugin {
     private boolean showLocationBar = true;
     private boolean openWindowHidden = false;
     private String allowSchemes = "";
+    private String captureSchemes = "";
     private String buttonLabel = "Done";
     private boolean clearAllCache= false;
     private boolean clearSessionCache=false;
@@ -103,6 +105,8 @@ public class InAppBrowser extends CordovaPlugin {
      */
     public boolean execute(String action, CordovaArgs args, final CallbackContext callbackContext) throws JSONException {
         if (action.equals("open")) {
+            this.allowSchemes = "";
+            this.captureSchemes = "";
             this.callbackContext = callbackContext;
             final String url = args.getString(0);
             String t = args.optString(1);
@@ -293,6 +297,10 @@ public class InAppBrowser extends CordovaPlugin {
                     } else if (key.equalsIgnoreCase(SCHEME_ALLOW)) {
                         if (option.hasMoreElements()) {
                             this.allowSchemes = option.nextToken();
+                        }
+                    } else if (key.equalsIgnoreCase(SCHEME_CAPTURE)) {
+                        if (option.hasMoreElements()) {
+                            this.captureSchemes = option.nextToken();
                         }
                     } else {
                         Boolean value = option.nextToken().equals("no") ? Boolean.FALSE : Boolean.TRUE;
@@ -596,7 +604,7 @@ public class InAppBrowser extends CordovaPlugin {
                 inAppWebView = new WebView(cordova.getActivity());
                 inAppWebView.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
                 inAppWebView.setWebChromeClient(new InAppChromeClient(thatWebView));
-                WebViewClient client = new InAppBrowserClient(thatWebView, edittext, allowSchemes);
+                WebViewClient client = new InAppBrowserClient(thatWebView, edittext, allowSchemes, captureSchemes);
                 inAppWebView.setWebViewClient(client);
                 WebSettings settings = inAppWebView.getSettings();
                 settings.setJavaScriptEnabled(true);
@@ -699,6 +707,7 @@ public class InAppBrowser extends CordovaPlugin {
         EditText edittext;
         CordovaWebView webView;
         String[] allowSchemes;
+        String[] captureSchemes;
 
         /**
          * Constructor.
@@ -706,11 +715,13 @@ public class InAppBrowser extends CordovaPlugin {
          * @param mContext
          * @param edittext
          */
-        public InAppBrowserClient(CordovaWebView webView, EditText mEditText, String allowSchemeString) {
+        public InAppBrowserClient(CordovaWebView webView, EditText mEditText, String allowSchemeString, String captureSchemeString) {
             this.webView = webView;
             this.edittext = mEditText;
             this.allowSchemes = allowSchemeString.split(SCHEME_SEPARATOR);
+            this.captureSchemes = captureSchemeString.split(SCHEME_SEPARATOR);
             Log.d(LOG_TAG, "Allowed schemes: " + Arrays.toString(this.allowSchemes));
+            Log.d(LOG_TAG, "Captured schemes: " + Arrays.toString(this.captureSchemes));
         }
 
         /**
@@ -721,7 +732,25 @@ public class InAppBrowser extends CordovaPlugin {
          */
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            if (Arrays.asList(allowSchemes).contains(Uri.parse(url).getScheme())) {
+            String scheme = Uri.parse(url).getScheme();
+
+            if (Arrays.asList(captureSchemes).contains(scheme)) {
+                Log.d(LOG_TAG, "Captured scheme url: " + url);
+
+                // notifiy that the scheme could not be called
+                try {
+                    JSONObject obj = new JSONObject();
+                    obj.put("type", LOAD_START_EVENT);
+                    obj.put("url", url);
+                    obj.put("scheme", scheme);
+                    sendUpdate(obj, true);
+
+                } catch (JSONException ex) {
+                    Log.d(LOG_TAG, "Should never happen");
+                }
+                return true;
+
+            } else if (Arrays.asList(allowSchemes).contains(scheme)) {
                 Log.d(LOG_TAG, "Opening scheme url with initent: " + url);
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW);

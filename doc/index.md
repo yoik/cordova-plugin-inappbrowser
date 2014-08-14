@@ -60,6 +60,7 @@ instance, or the system browser.
     - __clearcache__: set to `yes` to have the browser's cookie cache cleared before the new window is opened
     - __clearsessioncache__: set to `yes` to have the session cookie cache cleared before the new window is opened
     - __schemes__: set to a pipe (|) separated list of schemes that are allowed to be executed.  These are opened via a view intent the loaderror callback is called if there is no matching scheme.
+    - __schemecapture__: set to a pipe (|) separated list of schemes that should be captured.  These are then passed to the _loadstart_ event with the event property scheme.
 
     iOS only:
 

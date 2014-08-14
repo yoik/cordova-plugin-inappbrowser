@@ -60,6 +60,7 @@ import org.json.JSONObject;
 
 import java.util.HashMap;
 import java.util.StringTokenizer;
+import java.util.Arrays;
 
 @SuppressLint("SetJavaScriptEnabled")
 public class InAppBrowser extends CordovaPlugin {
@@ -72,6 +73,8 @@ public class InAppBrowser extends CordovaPlugin {
     private static final String EXIT_EVENT = "exit";
     private static final String LOCATION = "location";
     private static final String HIDDEN = "hidden";
+    private static final String SCHEME_ALLOW = "schemes";
+    private static final String SCHEME_SEPARATOR = "\\|";
     private static final String LOAD_START_EVENT = "loadstart";
     private static final String LOAD_STOP_EVENT = "loadstop";
     private static final String LOAD_ERROR_EVENT = "loaderror";
@@ -85,6 +88,7 @@ public class InAppBrowser extends CordovaPlugin {
     private CallbackContext callbackContext;
     private boolean showLocationBar = true;
     private boolean openWindowHidden = false;
+    private String allowSchemes = "";
     private String buttonLabel = "Done";
     private boolean clearAllCache= false;
     private boolean clearSessionCache=false;
@@ -286,6 +290,10 @@ public class InAppBrowser extends CordovaPlugin {
                     String key = option.nextToken();
                     if (key.equalsIgnoreCase(CLOSE_BUTTON_CAPTION)) {
                         this.buttonLabel = option.nextToken();
+                    } else if (key.equalsIgnoreCase(SCHEME_ALLOW)) {
+                        if (option.hasMoreElements()) {
+                            this.allowSchemes = option.nextToken();
+                        }
                     } else {
                         Boolean value = option.nextToken().equals("no") ? Boolean.FALSE : Boolean.TRUE;
                         map.put(key, value);
@@ -419,6 +427,7 @@ public class InAppBrowser extends CordovaPlugin {
         // Determine if we should hide the location bar.
         showLocationBar = true;
         openWindowHidden = false;
+
         if (features != null) {
             Boolean show = features.get(LOCATION);
             if (show != null) {
@@ -587,7 +596,7 @@ public class InAppBrowser extends CordovaPlugin {
                 inAppWebView = new WebView(cordova.getActivity());
                 inAppWebView.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
                 inAppWebView.setWebChromeClient(new InAppChromeClient(thatWebView));
-                WebViewClient client = new InAppBrowserClient(thatWebView, edittext);
+                WebViewClient client = new InAppBrowserClient(thatWebView, edittext, allowSchemes);
                 inAppWebView.setWebViewClient(client);
                 WebSettings settings = inAppWebView.getSettings();
                 settings.setJavaScriptEnabled(true);
@@ -689,6 +698,7 @@ public class InAppBrowser extends CordovaPlugin {
     public class InAppBrowserClient extends WebViewClient {
         EditText edittext;
         CordovaWebView webView;
+        String[] allowSchemes;
 
         /**
          * Constructor.
@@ -696,22 +706,45 @@ public class InAppBrowser extends CordovaPlugin {
          * @param mContext
          * @param edittext
          */
-        public InAppBrowserClient(CordovaWebView webView, EditText mEditText) {
+        public InAppBrowserClient(CordovaWebView webView, EditText mEditText, String allowSchemeString) {
             this.webView = webView;
             this.edittext = mEditText;
+            this.allowSchemes = allowSchemeString.split(SCHEME_SEPARATOR);
+            Log.d(LOG_TAG, "Allowed schemes: " + Arrays.toString(this.allowSchemes));
         }
 
+        /**
+         * Allow access to given schemes passed into the inAppBrowser.
+         *
+         * @param view          The webview initiating the callback.
+         * @param url           The url of the page.
+         */
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            if (url.startsWith("yoikinfo:")) {
+            if (Arrays.asList(allowSchemes).contains(Uri.parse(url).getScheme())) {
+                Log.d(LOG_TAG, "Opening scheme url with initent: " + url);
                 try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW);
-                        intent.setData(Uri.parse(url));
-                        cordova.getActivity().startActivity(intent);
-                    } catch (android.content.ActivityNotFoundException e) {
-                        LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setData(Uri.parse(url));
+                    cordova.getActivity().startActivity(intent);
+                } catch (android.content.ActivityNotFoundException e) {
+                    LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
+
+                    // notifiy that the scheme could not be called
+                    try {
+                        JSONObject obj = new JSONObject();
+                        obj.put("type", LOAD_ERROR_EVENT);
+                        obj.put("url", url);
+                        obj.put("code", "302");
+                        obj.put("message", "net::ERR_UNKNOWN_URL_SCHEME");
+
+                        sendUpdate(obj, true, PluginResult.Status.ERROR);
+                    } catch (JSONException ex) {
+                        Log.d(LOG_TAG, "Should never happen");
                     }
-                    return true;
+
+                }
+                return true;
             }
             return false;
         }
